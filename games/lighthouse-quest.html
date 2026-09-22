@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Тайна Северного Маяка</title>
+<style>
+  :root{
+    --sea-deep:#0b3d5c;
+    --sea-mid:#1b6a97;
+    --sand:#f4e2b8;
+    --coral:#e8734a;
+    --foam:#fdfaf3;
+    --ink:#173042;
+    --gold:#e9b949;
+    --ok:#3f9c5c;
+    --bad:#d1495b;
+    font-family: 'Comic Sans MS', 'Segoe UI', system-ui, sans-serif;
+  }
+  html,body{
+    margin:0; height:100%;
+    background: radial-gradient(circle at 50% -10%, var(--sea-mid), var(--sea-deep) 70%);
+    color:var(--ink);
+    box-sizing:border-box;
+    padding-top: env(safe-area-inset-top,0px);
+    padding-bottom: env(safe-area-inset-bottom,0px);
+  }
+  *{box-sizing:border-box;}
+  #app{
+    max-width:640px;
+    margin:0 auto;
+    min-height:100%;
+    display:flex;
+    flex-direction:column;
+    padding:16px;
+  }
+  header{
+    text-align:center;
+    color:var(--foam);
+    margin-bottom:8px;
+  }
+  header h1{
+    font-size:clamp(22px,6vw,32px);
+    margin:6px 0 2px;
+    text-shadow:0 2px 0 rgba(0,0,0,.25);
+  }
+  header p{margin:0; opacity:.85; font-size:14px;}
+
+  .progress-track{
+    display:flex; gap:8px; justify-content:center; margin:10px 0 18px;
+  }
+  .progress-dot{
+    width:14px;height:14px;border-radius:50%;
+    background:rgba(255,255,255,.25);
+    border:2px solid rgba(255,255,255,.5);
+    transition:.3s;
+  }
+  .progress-dot.done{ background:var(--gold); border-color:var(--gold);}
+  .progress-dot.active{ background:var(--coral); border-color:var(--foam); transform:scale(1.2);}
+
+  .card{
+    background:var(--foam);
+    border-radius:22px;
+    padding:20px;
+    box-shadow:0 12px 30px rgba(0,0,0,.35);
+    flex:1;
+    display:flex;
+    flex-direction:column;
+    animation:pop .35s ease;
+  }
+  @keyframes pop{ from{opacity:0; transform:translateY(12px);} to{opacity:1; transform:none;} }
+  @media (prefers-reduced-motion: reduce){ .card{animation:none;} }
+
+  .scene-art{ width:100%; height:auto; margin-bottom:10px; border-radius:14px; background:linear-gradient(180deg,#bfe3f0,#8fc7de); }
+
+  .story-text{
+    font-size:17px; line-height:1.5; margin:6px 0 16px;
+  }
+  .character{ display:flex; align-items:center; gap:10px; margin-bottom:10px;}
+  .character .bubble{
+    background:#fff8e6; border:2px solid var(--gold); border-radius:14px;
+    padding:8px 12px; font-size:15px; flex:1;
+  }
+  .character svg{ flex-shrink:0; }
+
+  .options{ display:flex; flex-direction:column; gap:10px; margin-top:auto; }
+  button.opt{
+    font-family:inherit; font-size:16px; padding:12px 14px;
+    border-radius:14px; border:2px solid var(--sea-mid);
+    background:#fff; color:var(--ink); cursor:pointer;
+    text-align:left; transition:.15s;
+  }
+  button.opt:hover{ background:#eaf6fb; }
+  button.opt:active{ transform:scale(.98); }
+  button.opt.correct{ background:#e3f6e8; border-color:var(--ok); }
+  button.opt.wrong{ background:#fbe6e8; border-color:var(--bad); }
+
+  .primary-btn{
+    font-family:inherit; font-size:17px; padding:14px;
+    border-radius:14px; border:none; cursor:pointer;
+    background:var(--coral); color:#fff; font-weight:bold;
+    box-shadow:0 4px 0 #b9532c;
+  }
+  .primary-btn:active{ transform:translateY(3px); box-shadow:none; }
+
+  .feedback{ font-size:15px; margin:8px 0; min-height:22px; font-weight:bold;}
+  .feedback.ok{ color:var(--ok); }
+  .feedback.bad{ color:var(--bad); }
+
+  .inventory{
+    display:flex; gap:8px; justify-content:center; margin-top:14px; flex-wrap:wrap;
+  }
+  .inv-item{
+    width:40px;height:40px;border-radius:10px;
+    background:#fff; border:2px solid var(--gold);
+    display:flex; align-items:center; justify-content:center; font-size:20px;
+  }
+
+  footer{ text-align:center; color:rgba(255,255,255,.6); font-size:12px; margin-top:12px;}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>🏝️ Тайна Северного Маяка</h1>
+    <p>Помоги Мие и чайке Кеше найти сокровище смотрителя маяка</p>
+  </header>
+  <div class="progress-track" id="progress"></div>
+  <div class="card" id="card"></div>
+  <footer>Игра для детей 6–8 лет · сохраняйте прогресс не нужно, просто играйте заново</footer>
+</div>
+
+<script>
+/* ---------- Данные игры (легко заменить своими) ---------- */
+const STAGES = [
+  {
+    id: "pier",
+    title: "Причал",
+    art: sceneArt("#8fc7de", "🚤"),
+    intro: "Мия и чайка Кеша пришли на старый причал. На доске висит расписание маяка, но цифры кто-то стёр солью!",
+    guide: "Реши пример, чтобы узнать номер тропинки к маяку.",
+    puzzle: {
+      type: "choice",
+      question: "Сколько будет 6 + 3?",
+      options: ["7", "9", "8", "10"],
+      answer: "9"
+    },
+    reward: "🐚 Ракушка-подсказка"
+  },
+  {
+    id: "cave",
+    title: "Пещера контрабандиста",
+    art: sceneArt("#6e5b73", "🕯️"),
+    intro: "Тропинка привела к тёмной пещере. На стене высечены буквы — кажется, здесь спрятан пароль.",
+    guide: "Собери из букв слово — название птицы, которая привела вас сюда.",
+    puzzle: {
+      type: "choice",
+      question: "Какое слово получится из букв: Й-А-К-Ч-А?",
+      options: ["ЧАЙКА", "КАЙЧА", "АЧКАЙ", "ЯКАЧА"],
+      answer: "ЧАЙКА"
+    },
+    reward: "🗝️ Ржавый ключик"
+  },
+  {
+    id: "lighthouse",
+    title: "Подножие маяка",
+    art: sceneArt("#e9b949", "🗼"),
+    intro: "Дверь маяка заперта на замок с цветными кнопками. Смотритель любил закаты — может, порядок цветов подскажет код?",
+    guide: "Выбери, какой цвет идёт в закате сразу после оранжевого.",
+    puzzle: {
+      type: "choice",
+      question: "После оранжевого на закате обычно идёт...",
+      options: ["Розовый", "Зелёный", "Синий", "Белый"],
+      answer: "Розовый"
+    },
+    reward: "🌅 Кусочек карты"
+  },
+  {
+    id: "attic",
+    title: "Чердак маяка",
+    art: sceneArt("#173042", "📦"),
+    intro: "Наверху, среди пыльных карт, стоит сундук смотрителя. На крышке загадка, нацарапанная гвоздём.",
+    guide: "Отгадай загадку смотрителя маяка.",
+    puzzle: {
+      type: "choice",
+      question: "Ночью я не сплю, свечу издалека, кораблям путь указываю без языка. Кто я?",
+      options: ["Маяк", "Луна", "Звезда", "Фонарь"],
+      answer: "Маяк"
+    },
+    reward: "💎 Жемчужина смотрителя"
+  }
+];
+
+/* ---------- Небольшой SVG-генератор фонов сцен ---------- */
+function sceneArt(bg, emoji){
+  return `<svg viewBox="0 0 400 160" class="scene-art" xmlns="http://www.w3.org/2000/svg">
+    <rect width="400" height="160" fill="${bg}"/>
+    <circle cx="330" cy="35" r="18" fill="#fff6d6" opacity="0.9"/>
+    <text x="200" y="105" font-size="70" text-anchor="middle">${emoji}</text>
+  </svg>`;
+}
+
+/* ---------- Состояние ---------- */
+let stageIndex = 0;
+let inventory = [];
+
+const cardEl = document.getElementById("card");
+const progressEl = document.getElementById("progress");
+
+function renderProgress(){
+  progressEl.innerHTML = STAGES.map((s,i)=>{
+    let cls = "progress-dot";
+    if(i < stageIndex) cls += " done";
+    else if(i === stageIndex) cls += " active";
+    return `<div class="${cls}"></div>`;
+  }).join("") + `<div class="progress-dot ${stageIndex>=STAGES.length?'done':''}"></div>`;
+}
+
+function renderIntro(stage){
+  cardEl.innerHTML = `
+    ${stage.art}
+    <h2 style="margin:4px 0;">${stage.title}</h2>
+    <div class="story-text">${stage.intro}</div>
+    <div class="character">
+      <svg width="46" height="46" viewBox="0 0 46 46"><circle cx="23" cy="23" r="22" fill="#fff" stroke="#e9b949" stroke-width="2"/><text x="23" y="30" font-size="24" text-anchor="middle">🐦</text></svg>
+      <div class="bubble">${stage.guide}</div>
+    </div>
+    <div class="options"><button class="primary-btn" id="toPuzzle">Попробовать →</button></div>
+  `;
+  document.getElementById("toPuzzle").onclick = ()=>renderPuzzle(stage);
+}
+
+function renderPuzzle(stage){
+  const p = stage.puzzle;
+  cardEl.innerHTML = `
+    ${stage.art}
+    <div class="story-text"><strong>${p.question}</strong></div>
+    <div class="options" id="opts"></div>
+    <div class="feedback" id="fb"></div>
+  `;
+  const optsEl = document.getElementById("opts");
+  const fb = document.getElementById("fb");
+  p.options.forEach(opt=>{
+    const btn = document.createElement("button");
+    btn.className = "opt";
+    btn.textContent = opt;
+    btn.onclick = ()=>{
+      const correct = opt === p.answer;
+      [...optsEl.children].forEach(b=>b.disabled=true);
+      btn.classList.add(correct ? "correct" : "wrong");
+      if(correct){
+        fb.textContent = "Верно! Ты нашла подсказку.";
+        fb.className = "feedback ok";
+        inventory.push(stage.reward);
+        setTimeout(()=>renderReward(stage), 900);
+      } else {
+        fb.textContent = "Не совсем — попробуй ещё раз!";
+        fb.className = "feedback bad";
+        setTimeout(()=>{
+          [...optsEl.children].forEach(b=>{b.disabled=false; b.classList.remove("wrong");});
+          fb.textContent = "";
+        }, 800);
+      }
+    };
+    optsEl.appendChild(btn);
+  });
+}
+
+function renderReward(stage){
+  cardEl.innerHTML = `
+    ${stage.art}
+    <div class="story-text">🎉 Отлично! Ты получаешь: <strong>${stage.reward}</strong></div>
+    <div class="inventory">${inventory.map(i=>`<div class="inv-item">${i.split(" ")[0]}</div>`).join("")}</div>
+    <div class="options"><button class="primary-btn" id="next">Идти дальше →</button></div>
+  `;
+  document.getElementById("next").onclick = ()=>{
+    stageIndex++;
+    renderProgress();
+    if(stageIndex < STAGES.length){
+      renderIntro(STAGES[stageIndex]);
+    } else {
+      renderFinal();
+    }
+  };
+}
+
+function renderFinal(){
+  cardEl.innerHTML = `
+    <svg viewBox="0 0 400 160" class="scene-art" xmlns="http://www.w3.org/2000/svg">
+      <rect width="400" height="160" fill="#e9b949"/>
+      <text x="200" y="105" font-size="70" text-anchor="middle">🏆</text>
+    </svg>
+    <h2>Сокровище найдено!</h2>
+    <div class="story-text">Мия и Кеша открыли сундук смотрителя маяка. Внутри — старинная жемчужина и записка: «Тому, кто прошёл весь путь с добрым сердцем». Спасибо, что помогла найти тайну Северного маяка!</div>
+    <div class="inventory">${inventory.map(i=>`<div class="inv-item">${i.split(" ")[0]}</div>`).join("")}</div>
+    <div class="options"><button class="primary-btn" id="restart">Играть снова</button></div>
+  `;
+  document.getElementById("restart").onclick = ()=>{
+    stageIndex = 0; inventory = [];
+    renderProgress();
+    renderIntro(STAGES[0]);
+  };
+}
+
+/* ---------- Старт ---------- */
+renderProgress();
+renderIntro(STAGES[0]);
+</script>
+</body>
+</html>

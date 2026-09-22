@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Звуковая мастерская</title>
+<style>
+  :root{
+    --night:#1b2a4a;
+    --night2:#0f1830;
+    --star:#ffe08a;
+    --card:#fffaf0;
+    --ink:#20263a;
+    --accent:#ff8a5b;
+    --ok:#4caf7d;
+    --bad:#e2596b;
+    font-family:'Comic Sans MS','Segoe UI',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0; min-height:100%;
+    background: radial-gradient(circle at 20% 10%, var(--night), var(--night2) 75%);
+    color:var(--ink);
+    padding-top: env(safe-area-inset-top,0px);
+    padding-bottom: env(safe-area-inset-bottom,0px);
+  }
+  #app{ max-width:640px; margin:0 auto; padding:16px; min-height:100%; display:flex; flex-direction:column; }
+  header{ text-align:center; color:var(--star); margin-bottom:6px; }
+  header h1{ font-size:clamp(20px,6vw,30px); margin:4px 0; text-shadow:0 2px 0 rgba(0,0,0,.4); }
+  header p{ margin:0; color:#cfe0ff; font-size:14px; }
+
+  .stars{ text-align:center; color:var(--star); font-size:18px; margin:10px 0 4px; }
+
+  .sound-picker{ display:grid; grid-template-columns:repeat(auto-fit,minmax(90px,1fr)); gap:10px; margin-top:14px; }
+  .sound-btn{
+    background:var(--card); border:3px solid transparent; border-radius:18px;
+    padding:14px 6px; text-align:center; cursor:pointer; font-family:inherit;
+    box-shadow:0 6px 0 rgba(0,0,0,.25);
+  }
+  .sound-btn:active{ transform:translateY(4px); box-shadow:none; }
+  .sound-btn .emoji{ font-size:34px; display:block; }
+  .sound-btn .letter{ font-size:20px; font-weight:bold; color:var(--accent); }
+
+  .card{
+    background:var(--card); border-radius:22px; padding:20px; margin-top:14px;
+    box-shadow:0 12px 30px rgba(0,0,0,.4); flex:1;
+    display:flex; flex-direction:column; align-items:center; text-align:center;
+    animation:pop .3s ease;
+  }
+  @keyframes pop{ from{opacity:0; transform:translateY(10px);} to{opacity:1; transform:none;} }
+  @media (prefers-reduced-motion: reduce){ .card{animation:none;} }
+
+  .pic{ font-size:64px; margin-bottom:6px; }
+  .mode-label{ font-size:13px; color:#8b7a55; text-transform:none; margin-bottom:2px; }
+  .word-display{
+    font-size:clamp(28px,8vw,40px); letter-spacing:3px; font-weight:bold;
+    margin:8px 0 18px; color:var(--ink);
+  }
+  .blank{ color:var(--accent); border-bottom:4px solid var(--accent); padding:0 4px; }
+
+  .letter-row, .word-options{ display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin-top:auto; }
+  .choice-btn{
+    font-family:inherit; font-size:20px; padding:12px 18px; border-radius:14px;
+    border:2px solid var(--ink); background:#fff; cursor:pointer;
+  }
+  .choice-btn.word{ font-size:17px; }
+  .choice-btn.correct{ background:#e3f6e8; border-color:var(--ok); }
+  .choice-btn.wrong{ background:#fbe6e8; border-color:var(--bad); }
+
+  .feedback{ min-height:24px; font-weight:bold; margin-top:12px; }
+  .feedback.ok{ color:var(--ok); }
+  .feedback.bad{ color:var(--bad); }
+
+  .primary-btn{
+    font-family:inherit; font-size:16px; padding:12px 20px; border-radius:14px;
+    border:none; background:var(--accent); color:#fff; font-weight:bold; cursor:pointer;
+    box-shadow:0 4px 0 #c9552a; margin-top:16px;
+  }
+  .primary-btn:active{ transform:translateY(3px); box-shadow:none; }
+
+  .backlink{ align-self:flex-start; color:#cfe0ff; background:none; border:none; font-family:inherit; font-size:14px; cursor:pointer; margin-bottom:6px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>🌙 Звуковая мастерская</h1>
+    <p>Вставляем и угадываем звуки для чистой речи</p>
+  </header>
+  <div class="stars" id="stars">⭐ 0</div>
+  <div id="screen"></div>
+</div>
+
+<script>
+/* ---------- Банк слов по звукам (легко расширять/менять) ---------- */
+const SOUNDS = {
+  "Р": { emoji:"🦊", words:[
+    {word:"рыба", pic:"🐟", idx:0},
+    {word:"корова", pic:"🐄", idx:2},
+    {word:"топор", pic:"🪓", idx:4},
+    {word:"ракета", pic:"🚀", idx:0},
+    {word:"забор", pic:"🚧", idx:3},
+  ]},
+  "Л": { emoji:"🐿️", words:[
+    {word:"лампа", pic:"💡", idx:0},
+    {word:"белка", pic:"🐿️", idx:2},
+    {word:"стол", pic:"🪑", idx:3},
+    {word:"юла", pic:"🌀", idx:2},
+    {word:"лодка", pic:"🚤", idx:0},
+  ]},
+  "Ш": { emoji:"🐍", words:[
+    {word:"шапка", pic:"🧢", idx:0},
+    {word:"кошка", pic:"🐱", idx:2},
+    {word:"мышь", pic:"🐭", idx:2},
+    {word:"шар", pic:"🎈", idx:0},
+    {word:"лошадь", pic:"🐴", idx:3},
+  ]},
+  "С": { emoji:"🐝", words:[
+    {word:"сумка", pic:"👜", idx:0},
+    {word:"лиса", pic:"🦊", idx:2},
+    {word:"сова", pic:"🦉", idx:0},
+    {word:"весы", pic:"⚖️", idx:2},
+    {word:"нос", pic:"👃", idx:2},
+  ]},
+  "З": { emoji:"🦓", words:[
+    {word:"зонт", pic:"☂️", idx:0},
+    {word:"коза", pic:"🐐", idx:2},
+    {word:"зебра", pic:"🦓", idx:0},
+    {word:"ваза", pic:"🏺", idx:2},
+    {word:"замок", pic:"🔒", idx:0},
+  ]},
+};
+
+const ALL_LETTERS = "АБВГДЕЖЗИЙКЛМНОПРСТУФХЦЧШЩЭЮЯ".split("");
+
+let stars = 0;
+let currentSound = null;
+let queue = [];       // exercises left in this round
+let mode = "insert";  // "insert" then "guess" per word
+
+const screenEl = document.getElementById("screen");
+const starsEl = document.getElementById("stars");
+
+function updateStars(){ starsEl.textContent = "⭐ " + stars; }
+
+/* ---------- Экран выбора звука ---------- */
+function renderPicker(){
+  screenEl.innerHTML = `
+    <div class="sound-picker">
+      ${Object.keys(SOUNDS).map(s=>`
+        <button class="sound-btn" data-sound="${s}">
+          <span class="emoji">${SOUNDS[s].emoji}</span>
+          <span class="letter">${s}</span>
+        </button>`).join("")}
+    </div>
+  `;
+  screenEl.querySelectorAll(".sound-btn").forEach(btn=>{
+    btn.onclick = ()=> startSound(btn.dataset.sound);
+  });
+}
+
+function startSound(sound){
+  currentSound = sound;
+  queue = SOUNDS[sound].words.map(w=>({...w, sound}));
+  nextExercise();
+}
+
+function nextExercise(){
+  if(queue.length === 0){
+    renderRoundComplete();
+    return;
+  }
+  const item = queue[0];
+  mode = "insert";
+  renderInsert(item);
+}
+
+/* ---------- Режим 1: вставь пропущенный звук ---------- */
+function renderInsert(item){
+  const letters = item.word.split("");
+  const target = letters[item.idx].toUpperCase();
+  const displayLetters = letters.map((ch,i)=> i===item.idx ? `<span class="blank">_</span>` : ch);
+
+  screenEl.innerHTML = `
+    <button class="backlink" id="back">← Другой звук</button>
+    <div class="card">
+      <div class="mode-label">Вставь пропущенный звук [${currentSound}]</div>
+      <div class="pic">${item.pic}</div>
+      <div class="word-display">${displayLetters.join("")}</div>
+      <div class="letter-row" id="letterRow"></div>
+      <div class="feedback" id="fb"></div>
+    </div>
+  `;
+  document.getElementById("back").onclick = renderPicker;
+
+  const options = buildLetterOptions(target);
+  const row = document.getElementById("letterRow");
+  const fb = document.getElementById("fb");
+
+  options.forEach(letter=>{
+    const b = document.createElement("button");
+    b.className = "choice-btn";
+    b.textContent = letter;
+    b.onclick = ()=>{
+      const correct = letter === target;
+      [...row.children].forEach(x=>x.disabled=true);
+      b.classList.add(correct?"correct":"wrong");
+      if(correct){
+        fb.textContent = "Верно! Слово: " + item.word;
+        fb.className = "feedback ok";
+        stars++; updateStars();
+        setTimeout(()=>{ mode="guess"; renderGuess(item); }, 900);
+      } else {
+        fb.textContent = "Почти! Попробуй другую букву.";
+        fb.className = "feedback bad";
+        setTimeout(()=>{
+          [...row.children].forEach(x=>{x.disabled=false; x.classList.remove("wrong");});
+          fb.textContent = "";
+        }, 700);
+      }
+    };
+    row.appendChild(b);
+  });
+}
+
+function buildLetterOptions(target){
+  const pool = ALL_LETTERS.filter(l=>l!==target);
+  shuffle(pool);
+  const distractors = pool.slice(0,3);
+  const options = shuffle([target, ...distractors]);
+  return options;
+}
+
+/* ---------- Режим 2: угадай пропущенное слово ---------- */
+function renderGuess(item){
+  const masked = maskWord(item.word);
+  const distractors = pickDistractorWords(item);
+  const options = shuffle([item.word, ...distractors]);
+
+  screenEl.innerHTML = `
+    <button class="backlink" id="back">← Другой звук</button>
+    <div class="card">
+      <div class="mode-label">Угадай слово со звуком [${currentSound}]</div>
+      <div class="pic">${item.pic}</div>
+      <div class="word-display">${masked}</div>
+      <div class="word-options" id="wordRow"></div>
+      <div class="feedback" id="fb"></div>
+    </div>
+  `;
+  document.getElementById("back").onclick = renderPicker;
+
+  const row = document.getElementById("wordRow");
+  const fb = document.getElementById("fb");
+
+  options.forEach(word=>{
+    const b = document.createElement("button");
+    b.className = "choice-btn word";
+    b.textContent = word;
+    b.onclick = ()=>{
+      const correct = word === item.word;
+      [...row.children].forEach(x=>x.disabled=true);
+      b.classList.add(correct?"correct":"wrong");
+      if(correct){
+        fb.textContent = "Отлично, слово угадано!";
+        fb.className = "feedback ok";
+        stars++; updateStars();
+        setTimeout(()=>{ queue.shift(); nextExercise(); }, 900);
+      } else {
+        fb.textContent = "Не то слово, смотри на картинку!";
+        fb.className = "feedback bad";
+        setTimeout(()=>{
+          [...row.children].forEach(x=>{x.disabled=false; x.classList.remove("wrong");});
+          fb.textContent = "";
+        }, 700);
+      }
+    };
+    row.appendChild(b);
+  });
+}
+
+function maskWord(word){
+  // оставляем первую и последнюю букву, остальное скрываем
+  return word.split("").map((ch,i,arr)=>{
+    if(i===0 || i===arr.length-1) return ch.toUpperCase();
+    return "_";
+  }).join("");
+}
+
+function pickDistractorWords(item){
+  // берём слова похожей длины из других звуков
+  const others = [];
+  Object.keys(SOUNDS).forEach(s=>{
+    if(s===currentSound) return;
+    SOUNDS[s].words.forEach(w=>{
+      if(Math.abs(w.word.length - item.word.length) <= 1) others.push(w.word);
+    });
+  });
+  shuffle(others);
+  return others.slice(0,2);
+}
+
+/* ---------- Завершение раунда ---------- */
+function renderRoundComplete(){
+  screenEl.innerHTML = `
+    <div class="card">
+      <div class="pic">🏆</div>
+      <div class="word-display" style="font-size:22px;">Звук [${currentSound}] отработан!</div>
+      <div style="font-size:16px;">Собрано звёзд: ⭐ ${stars}</div>
+      <button class="primary-btn" id="again">Выбрать другой звук</button>
+    </div>
+  `;
+  document.getElementById("again").onclick = renderPicker;
+}
+
+/* ---------- Утилиты ---------- */
+function shuffle(arr){
+  for(let i=arr.length-1;i>0;i--){
+    const j = Math.floor(Math.random()*(i+1));
+    [arr[i],arr[j]]=[arr[j],arr[i]];
+  }
+  return arr;
+}
+
+/* ---------- Старт ---------- */
+updateStars();
+renderPicker();
+</script>
+</body>
+</html>
