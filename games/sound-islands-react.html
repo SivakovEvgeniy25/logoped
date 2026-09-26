@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Звуковые острова</title>
+<script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+<style>
+  :root{
+    --card:#fffaf0; --ink:#20263a; --ok:#4caf7d; --bad:#e2596b; --coin:#ffd447;
+    font-family:'Comic Sans MS','Segoe UI',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{ margin:0; min-height:100%; background:#141830; color:var(--ink);
+    padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px); overflow-x:hidden; }
+  #root{ min-height:100%; position:relative; }
+  .scene{ min-height:100vh; transition:background 0.5s ease; position:relative; overflow:hidden; }
+
+  .blob{ position:absolute; border-radius:50%; opacity:.18; filter:blur(2px); pointer-events:none;
+    animation:float 14s ease-in-out infinite; }
+  @keyframes float{ 0%,100%{ transform:translateY(0px) translateX(0px);} 50%{ transform:translateY(-24px) translateX(14px);} }
+  @media (prefers-reduced-motion: reduce){ .blob{animation:none;} }
+
+  #app{ max-width:680px; margin:0 auto; min-height:100%; display:flex; flex-direction:column; position:relative; z-index:2; }
+  .topbar{ display:flex; align-items:center; justify-content:space-between; padding:12px 16px; color:#fff; }
+  .topbar h1{ font-size:clamp(18px,5.5vw,26px); margin:0; text-shadow:0 2px 0 rgba(0,0,0,.4); }
+  .coins{ background:rgba(0,0,0,.35); border-radius:20px; padding:6px 14px; font-weight:bold; font-size:16px;
+    color:var(--coin); display:flex; gap:6px; align-items:center; transition:transform .2s; }
+  .coins.bump{ transform:scale(1.25); }
+  .streak{ font-size:12px; color:#ffd166; text-align:right; padding:0 16px; min-height:16px; }
+  .backlink{ background:rgba(255,255,255,.15); border:none; color:#fff; border-radius:14px; padding:6px 12px;
+    font-family:inherit; font-size:14px; cursor:pointer; align-self:flex-start; margin:0 16px 8px; }
+  #stage{ flex:1; padding:0 16px 24px; }
+
+  .worlds{ display:flex; flex-direction:column; gap:16px; margin-top:10px; }
+  .world-card{ border-radius:24px; padding:18px; color:#fff; cursor:pointer; border:none; text-align:left;
+    box-shadow:0 10px 24px rgba(0,0,0,.4); display:flex; align-items:center; gap:14px; font-family:inherit;
+    transition:transform .15s; width:100%; position:relative; overflow:hidden; }
+  .world-card:active{ transform:scale(.98); }
+  .world-card .mascot{ font-size:46px; animation:bob 3s ease-in-out infinite; }
+  @keyframes bob{ 0%,100%{transform:translateY(0);} 50%{transform:translateY(-6px) rotate(-4deg);} }
+  .world-card h2{ margin:0 0 4px; font-size:20px; }
+  .world-card p{ margin:0; font-size:13px; opacity:.9; }
+  .world-progress{ position:absolute; right:14px; top:14px; background:rgba(0,0,0,.35); border-radius:10px;
+    padding:3px 8px; font-size:12px; }
+
+  .map-header{ text-align:center; color:#fff; margin:8px 0 16px; }
+  .map-header .mascot{ font-size:56px; display:inline-block; animation:bob 3s ease-in-out infinite; }
+  .map-header h2{ margin:6px 0 2px; } .map-header p{ margin:0; font-size:13px; opacity:.85; }
+  .level-path{ display:flex; flex-wrap:wrap; gap:16px; justify-content:center; padding:10px 0; }
+  .level-node{ width:84px; height:84px; border-radius:50%; border:4px solid #fff; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; cursor:pointer; font-weight:bold; color:#3a2a00; font-size:22px;
+    box-shadow:0 6px 0 rgba(0,0,0,.35); position:relative; transition:transform .15s; }
+  .level-node:active{ transform:translateY(4px); box-shadow:none; }
+  .level-node .sub{ font-size:11px; font-weight:normal; }
+  .level-node .stars{ position:absolute; bottom:-14px; font-size:12px; color:#ffd166; text-shadow:0 1px 2px #000; }
+
+  .variant-card{ background:var(--card); border-radius:22px; padding:22px; margin-top:10px;
+    box-shadow:0 12px 30px rgba(0,0,0,.4); text-align:center; }
+  .chip-row{ display:flex; flex-direction:column; gap:12px; margin-top:16px; }
+  .chip{ font-family:inherit; font-size:17px; padding:14px; border-radius:16px; border:3px solid var(--ink);
+    background:#fff; cursor:pointer; transition:transform .1s; }
+  .chip:active{ transform:scale(.98); }
+  .chip.hard{ border-color:#3a6ea5; } .chip.soft{ border-color:#4caf7d; } .chip.mix{ border-color:#e08a3c; }
+
+  .progress-path{ display:flex; gap:6px; justify-content:center; margin:8px 0 14px; }
+  .pp-dot{ width:12px; height:12px; border-radius:50%; background:rgba(255,255,255,.3); transition:.2s; }
+  .pp-dot.done{ background:var(--coin); } .pp-dot.active{ background:#fff; transform:scale(1.3); }
+
+  .card{ background:var(--card); border-radius:24px; padding:22px; box-shadow:0 12px 30px rgba(0,0,0,.4);
+    display:flex; flex-direction:column; align-items:center; text-align:center; animation:pop .3s ease; }
+  @keyframes pop{ from{opacity:0; transform:translateY(10px) scale(.97);} to{opacity:1; transform:none;} }
+  .card.shake{ animation:shake .4s; }
+  @keyframes shake{ 0%,100%{transform:translateX(0);} 25%{transform:translateX(-8px);} 75%{transform:translateX(8px);} }
+  @media (prefers-reduced-motion: reduce){ .card, .card.shake{animation:none;} }
+
+  .badge{ font-size:12px; font-weight:bold; padding:4px 12px; border-radius:12px; color:#fff; margin-bottom:8px; }
+  .pic{ font-size:72px; margin:4px 0; transition:transform .25s; }
+  .pic.win{ transform:scale(1.3) rotate(8deg); }
+  .word-display{ font-size:clamp(28px,8vw,42px); letter-spacing:3px; font-weight:bold; margin:6px 0 18px; }
+  .blank{ color:#e08a3c; border-bottom:5px solid #e08a3c; padding:0 4px; }
+
+  .letter-row,.word-options,.classify-row{ display:flex; flex-wrap:wrap; gap:10px; justify-content:center; }
+  .choice-btn{ font-family:inherit; font-size:20px; padding:12px 18px; border-radius:16px; border:2px solid var(--ink);
+    background:#fff; cursor:pointer; transition:transform .1s; }
+  .choice-btn:active:not(:disabled){ transform:scale(.95); }
+  .choice-btn.word{ font-size:16px; }
+  .choice-btn.correct{ background:#e3f6e8; border-color:var(--ok); }
+  .choice-btn.wrong{ background:#fbe6e8; border-color:var(--bad); }
+
+  .big-choice{ flex:1; min-width:130px; font-family:inherit; font-size:18px; font-weight:bold; padding:20px 10px;
+    border-radius:18px; border:4px solid transparent; color:#fff; cursor:pointer; transition:transform .1s; }
+  .big-choice.hardbtn{ background:#3a6ea5; } .big-choice.softbtn{ background:#4caf7d; }
+  .big-choice:active:not(:disabled){ transform:scale(.96); }
+  .big-choice.correctOutline{ border-color:#ffe08a; } .big-choice.wrongOutline{ border-color:#e2596b; }
+
+  .feedback{ min-height:24px; font-weight:bold; margin-top:14px; }
+  .feedback.ok{ color:var(--ok); } .feedback.bad{ color:var(--bad); }
+
+  .primary-btn{ font-family:inherit; font-size:16px; padding:12px 22px; border-radius:16px; border:none;
+    background:#e08a3c; color:#fff; font-weight:bold; cursor:pointer; box-shadow:0 4px 0 #a85f1e; margin-top:12px; }
+  .primary-btn:active{ transform:translateY(3px); box-shadow:none; }
+  .primary-btn.alt{ background:#3a6ea5; box-shadow:0 4px 0 #234a72; }
+
+  #confettiCanvas{ position:fixed; inset:0; pointer-events:none; z-index:50; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<canvas id="confettiCanvas"></canvas>
+
+<script type="text/babel">
+const { useState, useEffect, useRef, useCallback, useMemo } = React;
+
+/* =========================================================
+   ДАННЫЕ: группы звуков по месту образования + твёрдость/мягкость
+   ========================================================= */
+const GROUPS = {
+  front: {
+    title: "Остров Языка-Кончика",
+    subtitle: "Переднеязычные звуки — кончик языка у зубов",
+    grad: "linear-gradient(160deg,#2d6a4f,#123524)",
+    blobColor: "#7be0a8",
+    accent: "#ffd166",
+    mascot: "🦔",
+    sounds: {
+      "Р": { emoji:"🦊",
+        hard:[ {word:"рыба",pic:"🐟",idx:0}, {word:"корова",pic:"🐄",idx:2}, {word:"топор",pic:"🪓",idx:4} ],
+        soft:[ {word:"река",pic:"🏞️",idx:0}, {word:"берёза",pic:"🌳",idx:2}, {word:"варенье",pic:"🍯",idx:2} ] },
+      "Л": { emoji:"🐺",
+        hard:[ {word:"лампа",pic:"💡",idx:0}, {word:"стол",pic:"🪑",idx:3}, {word:"белка",pic:"🐿️",idx:2} ],
+        soft:[ {word:"лес",pic:"🌲",idx:0}, {word:"апельсин",pic:"🍊",idx:3}, {word:"мебель",pic:"🛋️",idx:4} ] },
+      "С": { emoji:"🐝",
+        hard:[ {word:"сумка",pic:"👜",idx:0}, {word:"сова",pic:"🦉",idx:0}, {word:"нос",pic:"👃",idx:2} ],
+        soft:[ {word:"сирень",pic:"🌸",idx:0}, {word:"письмо",pic:"✉️",idx:2}, {word:"гусеница",pic:"🐛",idx:3} ] },
+      "З": { emoji:"🦓",
+        hard:[ {word:"зонт",pic:"☂️",idx:0}, {word:"коза",pic:"🐐",idx:2}, {word:"ваза",pic:"🏺",idx:2} ],
+        soft:[ {word:"зима",pic:"❄️",idx:0}, {word:"земляника",pic:"🍓",idx:0}, {word:"обезьяна",pic:"🐒",idx:3} ] },
+      "Ш": { emoji:"🐍", hard:[ {word:"шапка",pic:"🧢",idx:0}, {word:"кошка",pic:"🐱",idx:2}, {word:"мышь",pic:"🐭",idx:2} ] },
+      "Ж": { emoji:"🪲", hard:[ {word:"жук",pic:"🪲",idx:0}, {word:"ёжик",pic:"🦔",idx:1}, {word:"лыжи",pic:"⛷️",idx:2} ] },
+      "Ц": { emoji:"🐤", hard:[ {word:"цветок",pic:"🌸",idx:0}, {word:"огурец",pic:"🥒",idx:4}, {word:"яйцо",pic:"🥚",idx:2} ] },
+      "Ч": { emoji:"🦋", soft:[ {word:"чашка",pic:"☕",idx:0}, {word:"бабочка",pic:"🦋",idx:4}, {word:"ключ",pic:"🔑",idx:3} ] },
+      "Щ": { emoji:"🐶", soft:[ {word:"щенок",pic:"🐶",idx:0}, {word:"ящик",pic:"📦",idx:2}, {word:"плащ",pic:"🧥",idx:3} ] },
+    }
+  },
+  mid: {
+    title: "Островок Средний",
+    subtitle: "Среднеязычный звук — средняя часть языка у нёба",
+    grad: "linear-gradient(160deg,#5e548e,#231942)",
+    blobColor: "#c3b8ff",
+    accent: "#9de0ff",
+    mascot: "🐦",
+    sounds: {
+      "Й": { emoji:"🐦", soft:[ {word:"йогурт",pic:"🥣",idx:0}, {word:"чайка",pic:"🐦",idx:2}, {word:"майка",pic:"👕",idx:2} ] },
+    }
+  },
+  back: {
+    title: "Горы Заднего Языка",
+    subtitle: "Заднеязычные звуки — задняя часть языка у нёба",
+    grad: "linear-gradient(160deg,#bb6a2e,#5f3113)",
+    blobColor: "#ffcf8a",
+    accent: "#ffe08a",
+    mascot: "🐐",
+    sounds: {
+      "К": { emoji:"🐱",
+        hard:[ {word:"кот",pic:"🐱",idx:0}, {word:"рука",pic:"✋",idx:2}, {word:"молоко",pic:"🥛",idx:3} ],
+        soft:[ {word:"кит",pic:"🐳",idx:0}, {word:"кенгуру",pic:"🦘",idx:0}, {word:"носки",pic:"🧦",idx:3} ] },
+      "Г": { emoji:"🐐",
+        hard:[ {word:"гора",pic:"⛰️",idx:0}, {word:"нога",pic:"🦵",idx:2}, {word:"радуга",pic:"🌈",idx:4} ],
+        soft:[ {word:"гитара",pic:"🎸",idx:0}, {word:"гиря",pic:"🏋️",idx:0}, {word:"сапоги",pic:"👢",idx:4} ] },
+      "Х": { emoji:"🐓",
+        hard:[ {word:"хлеб",pic:"🍞",idx:0}, {word:"муха",pic:"🪰",idx:2}, {word:"петух",pic:"🐓",idx:4} ],
+        soft:[ {word:"духи",pic:"🧴",idx:2}, {word:"орехи",pic:"🌰",idx:3}, {word:"мухи",pic:"🪰",idx:2} ] },
+    }
+  }
+};
+const ALL_LETTERS = "АБВГДЕЖЗИЙКЛМНОПРСТУФХЦЧШЩЭЮЯ".split("");
+const ALL_WORDS_FLAT = (()=>{
+  const bank = [];
+  Object.values(GROUPS).forEach(g=>Object.values(g.sounds).forEach(s=>{
+    (s.hard||[]).forEach(w=>bank.push(w.word));
+    (s.soft||[]).forEach(w=>bank.push(w.word));
+  }));
+  return bank;
+})();
+
+function shuffle(arr){ const a=[...arr]; for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+
+/* ---------- сохранение прогресса (только на этом устройстве) ---------- */
+const STORAGE_KEY = "soundIslandsProgressV1";
+function loadProgress(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : { coins:0, stars:{} };
+  }catch(e){ return { coins:0, stars:{} }; }
+}
+function saveProgress(p){
+  try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(p)); }catch(e){ /* тихо игнорируем */ }
+}
+
+/* ---------- звуковые сигналы без внешних файлов ---------- */
+let audioCtx = null;
+function beep(freq, dur, type="sine"){
+  try{
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = type; osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.start(); osc.stop(audioCtx.currentTime + dur);
+  }catch(e){ /* звук — необязательная деталь */ }
+}
+function playCorrect(){ beep(660,0.12); setTimeout(()=>beep(880,0.15),90); }
+function playWrong(){ beep(160,0.2,"sawtooth"); }
+
+/* ---------- конфетти на canvas ---------- */
+function burstConfetti(){
+  const canvas = document.getElementById("confettiCanvas");
+  if(!canvas) return;
+  const ctx = canvas.getContext("2d");
+  canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+  const colors = ["#ffd166","#4caf7d","#3a6ea5","#e2596b","#e08a3c"];
+  const particles = Array.from({length:36}).map(()=>({
+    x: canvas.width/2 + (Math.random()-0.5)*120,
+    y: canvas.height*0.35,
+    vx:(Math.random()-0.5)*8,
+    vy: -Math.random()*6-2,
+    size: 5+Math.random()*5,
+    color: colors[Math.floor(Math.random()*colors.length)],
+    rot: Math.random()*Math.PI
+  }));
+  let frame = 0;
+  function tick(){
+    frame++;
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    particles.forEach(p=>{
+      p.vy += 0.18; p.x += p.vx; p.y += p.vy; p.rot += 0.15;
+      ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(p.rot);
+      ctx.fillStyle = p.color; ctx.fillRect(-p.size/2,-p.size/2,p.size,p.size);
+      ctx.restore();
+    });
+    if(frame < 55) requestAnimationFrame(tick);
+    else ctx.clearRect(0,0,canvas.width,canvas.height);
+  }
+  tick();
+}
+
+/* ---------- фоновые "блобы" для атмосферы острова ---------- */
+function Blobs({color}){
+  const blobs = useMemo(()=> Array.from({length:6}).map((_,i)=>({
+    top: Math.random()*90+"%", left: Math.random()*90+"%",
+    size: 60+Math.random()*140, delay: (Math.random()*6).toFixed(1)+"s"
+  })), [color]);
+  return blobs.map((b,i)=>(
+    <div key={i} className="blob" style={{
+      top:b.top, left:b.left, width:b.size, height:b.size,
+      background:color, animationDelay:b.delay
+    }}/>
+  ));
+}
+
+/* ---------- корневое приложение ---------- */
+function App(){
+  const [screen, setScreen] = useState("worlds");
+  const [groupKey, setGroupKey] = useState(null);
+  const [soundKey, setSoundKey] = useState(null);
+  const [variant, setVariant] = useState(null);
+  const [queue, setQueue] = useState([]);
+  const [queueTotal, setQueueTotal] = useState(0);
+  const [progress, setProgress] = useState(loadProgress());
+  const [coinBump, setCoinBump] = useState(false);
+  const [streak, setStreak] = useState(0);
+
+  useEffect(()=>{ saveProgress(progress); }, [progress]);
+
+  const addCoins = useCallback((n)=>{
+    setProgress(p=>({...p, coins: p.coins + n}));
+    setCoinBump(true); setTimeout(()=>setCoinBump(false), 250);
+  }, []);
+
+  const registerLevelStars = useCallback((sKey, stars)=>{
+    setProgress(p=>({ ...p, stars: { ...p.stars, [sKey]: Math.max(p.stars[sKey]||0, stars) } }));
+  }, []);
+
+  const group = groupKey ? GROUPS[groupKey] : null;
+  const bgGrad = group ? group.grad : "#141830";
+
+  function goWorlds(){ setScreen("worlds"); setStreak(0); }
+  function goMap(g){ setGroupKey(g); setScreen("map"); }
+  function goVariant(g,s){
+    setGroupKey(g); setSoundKey(s);
+    const sound = GROUPS[g].sounds[s];
+    const hasHard = !!sound.hard, hasSoft = !!sound.soft;
+    if(hasHard && !hasSoft) return startRound(g,s,"hard");
+    if(hasSoft && !hasHard) return startRound(g,s,"soft");
+    setScreen("variant");
+  }
+
+  function startRound(g,s,v){
+    const sound = GROUPS[g].sounds[s];
+    let words = [];
+    if(v==="hard"||v==="both") words = words.concat((sound.hard||[]).map(w=>({...w,hardness:"hard"})));
+    if(v==="soft"||v==="both") words = words.concat((sound.soft||[]).map(w=>({...w,hardness:"soft"})));
+    words = shuffle(words).slice(0, v==="both" ? 6 : 3);
+    let ex = [];
+    words.forEach(w=>{
+      ex.push({type:"insert", ...w});
+      ex.push({type:"guess", ...w});
+      if(v==="both") ex.push({type:"classify", ...w});
+    });
+    setGroupKey(g); setSoundKey(s); setVariant(v);
+    setQueue(ex); setQueueTotal(ex.length); setStreak(0);
+    setScreen("exercise");
+  }
+
+  function onExerciseDone(correct){
+    if(correct){
+      setStreak(s=>s+1);
+    } else {
+      setStreak(0);
+    }
+    setQueue(q=>{
+      const rest = q.slice(1);
+      if(rest.length===0){
+        const stars = 3; // за прохождение уровня даём максимум звёзд, можно усложнить по ошибкам
+        registerLevelStars(groupKey+"-"+soundKey, stars);
+        setScreen("complete");
+      }
+      return rest;
+    });
+  }
+
+  return (
+    <div className="scene" style={{background:bgGrad}}>
+      {group && <Blobs color={group.blobColor} key={groupKey}/>}
+      <div id="app">
+        <div className="topbar">
+          <h1>🎮 Звуковые острова</h1>
+          <div className={"coins"+(coinBump?" bump":"")}>🪙 {progress.coins}</div>
+        </div>
+        {streak>=3 && screen==="exercise" && <div className="streak">🔥 Серия побед: {streak}</div>}
+
+        {screen!=="worlds" && (
+          <button className="backlink" onClick={()=>{
+            if(screen==="map") goWorlds();
+            else if(screen==="variant") goMap(groupKey);
+            else if(screen==="exercise") setScreen(variant && GROUPS[groupKey].sounds[soundKey].hard && GROUPS[groupKey].sounds[soundKey].soft ? "variant" : "map");
+            else if(screen==="complete") goMap(groupKey);
+          }}>← Назад</button>
+        )}
+
+        <div id="stage">
+          {screen==="worlds" && <WorldsScreen progress={progress} onPick={goMap}/>}
+          {screen==="map" && group && <MapScreen group={group} groupKey={groupKey} progress={progress} onPick={(s)=>goVariant(groupKey,s)}/>}
+          {screen==="variant" && group && soundKey && (
+            <VariantScreen sound={group.sounds[soundKey]} soundKey={soundKey}
+              onPick={(v)=>startRound(groupKey,soundKey,v)}/>
+          )}
+          {screen==="exercise" && queue.length>0 && (
+            <ExerciseScreen
+              item={queue[0]}
+              soundKey={soundKey}
+              queueTotal={queueTotal}
+              doneCount={queueTotal-queue.length}
+              onResult={(correct)=>{ if(correct) addCoins(1+(streak>=2?1:0)); onExerciseDone(correct); }}
+            />
+          )}
+          {screen==="complete" && (
+            <CompleteScreen soundKey={soundKey} coins={progress.coins}
+              onMap={()=>goMap(groupKey)} onWorlds={goWorlds}/>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function WorldsScreen({progress, onPick}){
+  return (
+    <div className="worlds">
+      {Object.entries(GROUPS).map(([key,g])=>{
+        const soundKeys = Object.keys(g.sounds);
+        const earned = soundKeys.reduce((sum,sk)=> sum + (progress.stars[key+"-"+sk]||0), 0);
+        const total = soundKeys.length*3;
+        return (
+          <button key={key} className="world-card" style={{background:g.grad}} onClick={()=>onPick(key)}>
+            <div className="world-progress">⭐ {earned}/{total}</div>
+            <div className="mascot">{g.mascot}</div>
+            <div>
+              <h2>{g.title}</h2>
+              <p>{g.subtitle}</p>
+            </div>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function MapScreen({group, groupKey, progress, onPick}){
+  return (
+    <React.Fragment>
+      <div className="map-header">
+        <div className="mascot">{group.mascot}</div>
+        <h2>{group.title}</h2>
+        <p>{group.subtitle}</p>
+      </div>
+      <div className="level-path">
+        {Object.entries(group.sounds).map(([sk,s])=>{
+          const stars = progress.stars[groupKey+"-"+sk]||0;
+          return (
+            <div key={sk} className="level-node" style={{background:group.accent}} onClick={()=>onPick(sk)}>
+              <div>{sk}</div>
+              <div className="sub">{s.emoji}</div>
+              {stars>0 && <div className="stars">{"⭐".repeat(stars)}</div>}
+            </div>
+          );
+        })}
+      </div>
+    </React.Fragment>
+  );
+}
+
+function VariantScreen({sound, soundKey, onPick}){
+  return (
+    <div className="variant-card">
+      <div style={{fontSize:46}}>{sound.emoji}</div>
+      <h2>Звук [{soundKey}]</h2>
+      <p>Какой звук будем тренировать?</p>
+      <div className="chip-row">
+        <button className="chip hard" onClick={()=>onPick("hard")}>🔵 Твёрдый ({sound.hard[0].word})</button>
+        <button className="chip soft" onClick={()=>onPick("soft")}>🟢 Мягкий ({sound.soft[0].word})</button>
+        <button className="chip mix" onClick={()=>onPick("both")}>🟠 Оба вместе — учимся различать</button>
+      </div>
+    </div>
+  );
+}
+
+function ProgressPath({total, done}){
+  return (
+    <div className="progress-path">
+      {Array.from({length:total}).map((_,i)=>{
+        let cls = "pp-dot";
+        if(i<done) cls += " done"; else if(i===done) cls += " active";
+        return <div key={i} className={cls}/>;
+      })}
+    </div>
+  );
+}
+
+function badgeColor(h){ return h==="hard" ? "#3a6ea5" : "#4caf7d"; }
+function badgeText(h){ return h==="hard" ? "Твёрдый звук" : "Мягкий звук"; }
+
+function ExerciseScreen({item, soundKey, queueTotal, doneCount, onResult}){
+  const [shake, setShake] = useState(false);
+  const [win, setWin] = useState(false);
+
+  function handle(correct){
+    if(correct){
+      playCorrect(); burstConfetti(); setWin(true);
+      setTimeout(()=>onResult(true), 700);
+    } else {
+      playWrong(); setShake(true);
+      setTimeout(()=>setShake(false), 400);
+    }
+  }
+
+  return (
+    <React.Fragment>
+      <ProgressPath total={queueTotal} done={doneCount}/>
+      <div className={"card"+(shake?" shake":"")}>
+        <div className="badge" style={{background:badgeColor(item.hardness)}}>{badgeText(item.hardness)}</div>
+        <div className={"pic"+(win?" win":"")}>{item.pic}</div>
+        {item.type==="insert" && <InsertGame item={item} onResult={handle}/>}
+        {item.type==="guess" && <GuessGame item={item} onResult={handle}/>}
+        {item.type==="classify" && <ClassifyGame item={item} soundKey={soundKey} onResult={handle}/>}
+      </div>
+    </React.Fragment>
+  );
+}
+
+function InsertGame({item, onResult}){
+  const target = item.word[item.idx].toUpperCase();
+  const options = useMemo(()=>{
+    const pool = shuffle(ALL_LETTERS.filter(l=>l!==target)).slice(0,3);
+    return shuffle([target, ...pool]);
+  }, [item.word]);
+  const [picked, setPicked] = useState(null);
+  const [locked, setLocked] = useState(false);
+
+  function choose(letter){
+    if(locked) return;
+    const correct = letter===target;
+    setPicked(letter); setLocked(true);
+    if(correct){
+      setTimeout(()=>onResult(true), 50);
+    } else {
+      onResult(false);
+      setTimeout(()=>{ setLocked(false); setPicked(null); }, 500);
+    }
+  }
+  const letters = item.word.split("");
+  return (
+    <React.Fragment>
+      <div className="word-display">
+        {letters.map((ch,i)=> i===item.idx ? <span key={i} className="blank">_</span> : ch)}
+      </div>
+      <div className="letter-row">
+        {options.map(l=>{
+          let cls = "choice-btn";
+          if(picked===l) cls += l===target ? " correct" : " wrong";
+          return <button key={l} className={cls} disabled={locked && picked!==l} onClick={()=>choose(l)}>{l}</button>;
+        })}
+      </div>
+      <div className={"feedback "+(picked ? (picked===target?"ok":"bad") : "")}>
+        {picked ? (picked===target ? "Верно! Слово: "+item.word : "Почти! Попробуй ещё раз.") : ""}
+      </div>
+    </React.Fragment>
+  );
+}
+
+function GuessGame({item, onResult}){
+  const masked = item.word.split("").map((ch,i,arr)=> (i===0||i===arr.length-1)?ch.toUpperCase():"_").join("");
+  const options = useMemo(()=>{
+    const similar = shuffle(ALL_WORDS_FLAT.filter(w=> w!==item.word && Math.abs(w.length-item.word.length)<=1)).slice(0,2);
+    return shuffle([item.word, ...similar]);
+  }, [item.word]);
+  const [picked, setPicked] = useState(null);
+  const [locked, setLocked] = useState(false);
+
+  function choose(word){
+    if(locked) return;
+    const correct = word===item.word;
+    setPicked(word); setLocked(true);
+    if(correct) setTimeout(()=>onResult(true), 50);
+    else { onResult(false); setTimeout(()=>{ setLocked(false); setPicked(null); }, 500); }
+  }
+  return (
+    <React.Fragment>
+      <div className="word-display">{masked}</div>
+      <div className="word-options">
+        {options.map(w=>{
+          let cls = "choice-btn word";
+          if(picked===w) cls += w===item.word ? " correct" : " wrong";
+          return <button key={w} className={cls} disabled={locked && picked!==w} onClick={()=>choose(w)}>{w}</button>;
+        })}
+      </div>
+      <div className={"feedback "+(picked ? (picked===item.word?"ok":"bad") : "")}>
+        {picked ? (picked===item.word ? "Отлично, слово угадано!" : "Не то слово — смотри на картинку!") : ""}
+      </div>
+    </React.Fragment>
+  );
+}
+
+function ClassifyGame({item, soundKey, onResult}){
+  const [picked, setPicked] = useState(null);
+  const [locked, setLocked] = useState(false);
+
+  function choose(choice){
+    if(locked) return;
+    const correct = choice===item.hardness;
+    setPicked(choice); setLocked(true);
+    if(correct) setTimeout(()=>onResult(true), 50);
+    else { onResult(false); setTimeout(()=>{ setLocked(false); setPicked(null); }, 500); }
+  }
+  return (
+    <React.Fragment>
+      <div className="word-display">{item.word.toUpperCase()}</div>
+      <p style={{marginTop:-8}}>Звук [{soundKey}] в этом слове...</p>
+      <div className="classify-row">
+        <button className={"big-choice hardbtn"+(picked==="hard"?(item.hardness==="hard"?" correctOutline":" wrongOutline"):"")}
+          disabled={locked && picked!=="hard"} onClick={()=>choose("hard")}>🔵 Твёрдый</button>
+        <button className={"big-choice softbtn"+(picked==="soft"?(item.hardness==="soft"?" correctOutline":" wrongOutline"):"")}
+          disabled={locked && picked!=="soft"} onClick={()=>choose("soft")}>🟢 Мягкий</button>
+      </div>
+      <div className={"feedback "+(picked ? (picked===item.hardness?"ok":"bad") : "")}>
+        {picked ? (picked===item.hardness ? "Точно! Молодец!" : "Не совсем — послушай слово ещё раз.") : ""}
+      </div>
+    </React.Fragment>
+  );
+}
+
+function CompleteScreen({soundKey, coins, onMap, onWorlds}){
+  return (
+    <div className="card">
+      <div className="pic">🏆</div>
+      <h2>Уровень «{soundKey}» пройден!</h2>
+      <p>Собрано монет: 🪙 {coins}</p>
+      <button className="primary-btn" onClick={onMap}>К карте острова</button>
+      <button className="primary-btn alt" onClick={onWorlds}>Все острова</button>
+    </div>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById("root"));
+root.render(<App/>);
+</script>
+</body>
+</html>
